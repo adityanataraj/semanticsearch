@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semantic Search for CSV</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --text-muted: #6c757d;
+    --primary: #4263eb;
+    --primary-hover: #3b5bdb;
+    --accent: #f1f3f5;
+    --success: #37b24d;
+    --score-high: #37b24d;
+    --score-mid: #f59f00;
+    --score-low: #868e96;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  header {
+    text-align: center;
+    padding: 32px 0 24px;
+  }
+
+  header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  header p {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  /* Upload area */
+  .upload-area {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 24px;
+  }
+
+  .upload-area:hover, .upload-area.dragover {
+    border-color: var(--primary);
+    background: #f0f3ff;
+  }
+
+  .upload-area h2 {
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+
+  .upload-area p {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .upload-area input[type="file"] { display: none; }
+
+  /* File info bar */
+  .file-info {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+  }
+
+  .file-info.visible { display: flex; }
+
+  .file-info .file-name { font-weight: 600; }
+  .file-info .file-meta { color: var(--text-muted); }
+
+  .file-info button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .file-info button:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  /* Search bar */
+  .search-section {
+    display: none;
+    margin-bottom: 16px;
+  }
+
+  .search-section.visible { display: block; }
+
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .search-bar input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-bar input:focus { border-color: var(--primary); }
+
+  .search-bar button {
+    padding: 10px 24px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+
+  .search-bar button:hover { background: var(--primary-hover); }
+  .search-bar button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* Filters */
+  .filters-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: default;
+  }
+
+  .filter-chip .remove {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-weight: bold;
+    margin-left: 4px;
+  }
+
+  .filter-chip .remove:hover { color: #e03131; }
+
+  .add-filter-btn {
+    padding: 4px 12px;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+
+  .add-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* Column selector */
+  .column-selector {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .column-selector select {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  /* Filter modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    min-width: 360px;
+    max-width: 90vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .modal h3 { margin-bottom: 16px; font-size: 16px; }
+
+  .modal label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+
+  .modal select, .modal input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+
+  .modal-actions button {
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .modal-actions .btn-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  /* Results */
+  .results-section {
+    display: none;
+  }
+
+  .results-section.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .results-header .export-btn {
+    padding: 6px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+
+  .results-header .export-btn:hover { background: var(--accent); }
+
+  .results-table-wrapper {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .results-table th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+
+  .results-table th:hover { color: var(--text); }
+
+  .results-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--accent);
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .results-table tr:hover td { background: #f8f9ff; }
+
+  .results-table tr.expanded td {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .results-table tr { cursor: pointer; }
+
+  .score-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .score-high { background: #d3f9d8; color: #2b8a3e; }
+  .score-mid { background: #fff3bf; color: #e67700; }
+  .score-low { background: #f1f3f5; color: #868e96; }
+
+  /* Loading & status */
+  .status-msg {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .progress-bar-container {
+    display: none;
+    margin: 16px 0;
+    background: var(--accent);
+    border-radius: 4px;
+    overflow: hidden;
+    height: 6px;
+  }
+
+  .progress-bar-container.visible { display: block; }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .pagination button {
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .pagination button:hover { background: var(--accent); }
+  .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .container { padding: 12px; }
+    .upload-area { padding: 32px 16px; }
+    .search-bar { flex-direction: column; }
+    .search-bar button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Semantic Search for CSV</h1>
+    <p>Upload a Productboard CSV export and search by meaning, not just keywords</p>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-area" id="uploadArea">
+    <h2>Drop your CSV file here</h2>
+    <p>or click to browse (up to 50 MB)</p>
+    <input type="file" id="fileInput" accept=".csv">
+  </div>
+
+  <div class="progress-bar-container" id="progressBar">
+    <div class="progress-bar" id="progressBarInner"></div>
+  </div>
+
+  <!-- File info -->
+  <div class="file-info" id="fileInfo">
+    <div>
+      <span class="file-name" id="fileName"></span>
+      <span class="file-meta" id="fileMeta"></span>
+    </div>
+    <button onclick="resetApp()">Change file</button>
+  </div>
+
+  <!-- Search -->
+  <div class="search-section" id="searchSection">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search by meaning... e.g. 'security concerns' or 'mobile performance issues'">
+      <button id="searchBtn" onclick="doSearch()">Search</button>
+    </div>
+
+    <div class="column-selector" id="columnSelector">
+      <span>Search in:</span>
+      <select id="searchColumnSelect">
+        <option value="">All text columns</option>
+      </select>
+    </div>
+
+    <div class="filters-bar" id="filtersBar">
+      <button class="add-filter-btn" onclick="showFilterModal()">+ Add filter</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSection">
+    <div class="results-header">
+      <span id="resultsCount"></span>
+      <button class="export-btn" onclick="exportResults()">Export to CSV</button>
+    </div>
+    <div class="results-table-wrapper">
+      <table class="results-table" id="resultsTable">
+        <thead id="resultsHead"></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <div class="status-msg" id="statusMsg"></div>
+</div>
+
+<!-- Filter modal -->
+<div class="modal-overlay" id="filterModal">
+  <div class="modal">
+    <h3>Add Filter</h3>
+    <label>Column</label>
+    <select id="filterColumn" onchange="updateFilterOps()"></select>
+    <label>Condition</label>
+    <select id="filterOp">
+      <option value="eq">equals</option>
+      <option value="neq">does not equal</option>
+      <option value="contains">contains</option>
+    </select>
+    <label>Value</label>
+    <input type="text" id="filterValue" placeholder="Enter value">
+    <div id="filterValueOptions"></div>
+    <div class="modal-actions">
+      <button onclick="closeFilterModal()">Cancel</button>
+      <button class="btn-primary" onclick="addFilter()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  datasetId: null,
+  columns: [],
+  textColumns: [],
+  filters: [],
+  lastQuery: '',
+  currentOffset: 0,
+  pageSize: 50,
+  totalMatching: 0,
+};
+
+// Upload
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    showStatus('Please upload a CSV file.');
+    return;
+  }
+
+  showStatus('<span class="spinner"></span> Uploading and processing... This may take a moment for large files.');
+  showProgress(true);
+  animateProgress(0, 90, 15000);
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Upload failed');
+    }
+
+    const data = await res.json();
+    state.datasetId = data.dataset_id;
+    state.columns = data.columns;
+    state.textColumns = data.text_columns;
+
+    animateProgress(90, 100, 300);
+    setTimeout(() => showProgress(false), 400);
+
+    document.getElementById('fileName').textContent = data.filename;
+    document.getElementById('fileMeta').textContent = ` \u2014 ${data.rows.toLocaleString()} rows, ${data.columns.length} columns`;
+    document.getElementById('fileInfo').classList.add('visible');
+    document.getElementById('searchSection').classList.add('visible');
+    uploadArea.style.display = 'none';
+
+    // Populate column selector
+    const sel = document.getElementById('searchColumnSelect');
+    sel.innerHTML = '<option value="">All text columns</option>';
+    state.textColumns.forEach(c => {
+      sel.innerHTML += `<option value="${esc(c)}">${esc(c)}</option>`;
+    });
+
+    // Populate filter column select
+    const fc = document.getElementById('filterColumn');
+    fc.innerHTML = '';
+    state.columns.forEach(c => {
+      fc.innerHTML += `<option value="${esc(c.name)}">${esc(c.name)}</option>`;
+    });
+
+    showStatus('');
+    document.getElementById('searchInput').focus();
+  } catch (err) {
+    showProgress(false);
+    showStatus('Error: ' + err.message);
+  }
+}
+
+async function doSearch(offset = 0) {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+
+  state.lastQuery = q;
+  state.currentOffset = offset;
+
+  const searchBtn = document.getElementById('searchBtn');
+  searchBtn.disabled = true;
+  showStatus('<span class="spinner"></span> Searching...');
+
+  const searchCol = document.getElementById('searchColumnSelect').value;
+  const params = new URLSearchParams({
+    dataset_id: state.datasetId,
+    q: q,
+    limit: state.pageSize,
+    offset: offset,
+  });
+  if (searchCol) params.set('columns', searchCol);
+  if (state.filters.length) params.set('filters', JSON.stringify(state.filters));
+
+  try {
+    const res = await fetch('/api/search?' + params);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Search failed');
+    }
+
+    const data = await res.json();
+    state.totalMatching = data.total_matching;
+    renderResults(data);
+    showStatus('');
+  } catch (err) {
+    showStatus('Error: ' + err.message);
+  } finally {
+    searchBtn.disabled = false;
+  }
+}
+
+function renderResults(data) {
+  const section = document.getElementById('resultsSection');
+  const head = document.getElementById('resultsHead');
+  const body = document.getElementById('resultsBody');
+
+  section.classList.add('visible');
+
+  if (!data.results.length) {
+    document.getElementById('resultsCount').textContent = 'No results found';
+    head.innerHTML = '';
+    body.innerHTML = '';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  const startNum = state.currentOffset + 1;
+  const endNum = state.currentOffset + data.results.length;
+  document.getElementById('resultsCount').textContent =
+    `Showing ${startNum}-${endNum} of ${data.total_matching.toLocaleString()} matching rows`;
+
+  // Determine visible columns (score + up to 6 data columns)
+  const allCols = Object.keys(data.results[0].data);
+  const priorityCols = ['Title', 'Name', 'Feature', 'Description', 'Status', 'Priority', 'Customer', 'Company'];
+  let visibleCols = [];
+  priorityCols.forEach(pc => {
+    const match = allCols.find(c => c.toLowerCase() === pc.toLowerCase());
+    if (match && visibleCols.length < 6) visibleCols.push(match);
+  });
+  // Fill remaining slots
+  allCols.forEach(c => {
+    if (!visibleCols.includes(c) && visibleCols.length < 6) visibleCols.push(c);
+  });
+
+  head.innerHTML = '<tr><th>Score</th>' +
+    visibleCols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
+
+  body.innerHTML = data.results.map((r, i) => {
+    const scoreClass = r.score >= 60 ? 'score-high' : r.score >= 40 ? 'score-mid' : 'score-low';
+    const cells = visibleCols.map(c => `<td title="${esc(r.data[c] || '')}">${esc(truncate(r.data[c] || '', 120))}</td>`).join('');
+    return `<tr onclick="toggleRow(this)" data-idx="${i}">
+      <td><span class="score-badge ${scoreClass}">${r.score}%</span></td>${cells}</tr>`;
+  }).join('');
+
+  // Pagination
+  const pag = document.getElementById('pagination');
+  const hasPrev = state.currentOffset > 0;
+  const hasNext = state.currentOffset + data.results.length < data.total_matching;
+  pag.innerHTML = `
+    <button ${hasPrev ? '' : 'disabled'} onclick="doSearch(${state.currentOffset - state.pageSize})">Previous</button>
+    <button ${hasNext ? '' : 'disabled'} onclick="doSearch(${state.currentOffset + state.pageSize})">Next</button>
+  `;
+}
+
+function toggleRow(tr) {
+  tr.classList.toggle('expanded');
+}
+
+// Filters
+function showFilterModal() {
+  document.getElementById('filterModal').classList.add('visible');
+  updateFilterOps();
+}
+
+function closeFilterModal() {
+  document.getElementById('filterModal').classList.remove('visible');
+  document.getElementById('filterValue').value = '';
+  document.getElementById('filterValueOptions').innerHTML = '';
+}
+
+function updateFilterOps() {
+  const colName = document.getElementById('filterColumn').value;
+  const col = state.columns.find(c => c.name === colName);
+  const opSel = document.getElementById('filterOp');
+  const optionsDiv = document.getElementById('filterValueOptions');
+  optionsDiv.innerHTML = '';
+
+  if (!col) return;
+
+  if (col.type === 'numeric') {
+    opSel.innerHTML = `
+      <option value="eq">equals</option>
+      <option value="neq">does not equal</option>
+      <option value="gt">greater than</option>
+      <option value="lt">less than</option>
+    `;
+  } else {
+    opSel.innerHTML = `
+      <option value="eq">equals</option>
+      <option value="neq">does not equal</option>
+      <option value="contains">contains</option>
+    `;
+  }
+
+  // Show quick-pick values if available
+  if (col.unique_values && col.unique_values.length > 0) {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;';
+    col.unique_values.slice(0, 20).forEach(v => {
+      const chip = document.createElement('span');
+      chip.textContent = v;
+      chip.style.cssText = 'padding:2px 8px;background:#f1f3f5;border-radius:4px;font-size:12px;cursor:pointer;';
+      chip.onclick = () => { document.getElementById('filterValue').value = v; };
+      wrapper.appendChild(chip);
+    });
+    optionsDiv.appendChild(wrapper);
+  }
+}
+
+function addFilter() {
+  const col = document.getElementById('filterColumn').value;
+  const op = document.getElementById('filterOp').value;
+  const val = document.getElementById('filterValue').value.trim();
+  if (!val) return;
+
+  state.filters.push({ column: col, op, value: val });
+  renderFilterChips();
+  closeFilterModal();
+
+  if (state.lastQuery) doSearch();
+}
+
+function removeFilter(idx) {
+  state.filters.splice(idx, 1);
+  renderFilterChips();
+  if (state.lastQuery) doSearch();
+}
+
+function renderFilterChips() {
+  const bar = document.getElementById('filtersBar');
+  const opLabels = { eq: '=', neq: '\u2260', contains: 'contains', gt: '>', lt: '<' };
+  bar.innerHTML = state.filters.map((f, i) =>
+    `<span class="filter-chip">${esc(f.column)} ${opLabels[f.op] || f.op} "${esc(f.value)}"<span class="remove" onclick="removeFilter(${i})">\u00d7</span></span>`
+  ).join('') + '<button class="add-filter-btn" onclick="showFilterModal()">+ Add filter</button>';
+}
+
+function exportResults() {
+  if (!state.lastQuery) return;
+  const params = new URLSearchParams({
+    dataset_id: state.datasetId,
+    q: state.lastQuery,
+    limit: 5000,
+  });
+  const searchCol = document.getElementById('searchColumnSelect').value;
+  if (searchCol) params.set('columns', searchCol);
+  if (state.filters.length) params.set('filters', JSON.stringify(state.filters));
+  window.location.href = '/api/export?' + params;
+}
+
+function resetApp() {
+  state.datasetId = null;
+  state.columns = [];
+  state.textColumns = [];
+  state.filters = [];
+  state.lastQuery = '';
+  state.currentOffset = 0;
+  state.totalMatching = 0;
+
+  uploadArea.style.display = '';
+  document.getElementById('fileInfo').classList.remove('visible');
+  document.getElementById('searchSection').classList.remove('visible');
+  document.getElementById('resultsSection').classList.remove('visible');
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filtersBar').innerHTML = '<button class="add-filter-btn" onclick="showFilterModal()">+ Add filter</button>';
+  showStatus('');
+  fileInput.value = '';
+}
+
+// Utility
+function showStatus(msg) {
+  document.getElementById('statusMsg').innerHTML = msg;
+}
+
+function showProgress(show) {
+  const el = document.getElementById('progressBar');
+  if (show) { el.classList.add('visible'); }
+  else { el.classList.remove('visible'); document.getElementById('progressBarInner').style.width = '0%'; }
+}
+
+let progressTimer = null;
+function animateProgress(from, to, durationMs) {
+  clearInterval(progressTimer);
+  const bar = document.getElementById('progressBarInner');
+  let current = from;
+  const step = (to - from) / (durationMs / 50);
+  progressTimer = setInterval(() => {
+    current += step;
+    if (current >= to) { current = to; clearInterval(progressTimer); }
+    bar.style.width = current + '%';
+  }, 50);
+}
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '...' : s;
+}
+</script>
+</body>
+</html>
