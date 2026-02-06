@@ -5,8 +5,8 @@ Search your Productboard CSV exports by meaning, not just keywords. Uses local A
 ## Quick Start
 
 ```bash
-pip install -r requirements.txt
-python app.py
+pip3 install -r requirements.txt
+python3 app.py
 ```
 
 Open http://localhost:8000 in your browser.
